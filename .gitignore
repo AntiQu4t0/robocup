@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.log
+*.jpg
+*.png
+*.mp4
+*.avi
+.DS_Store
+tmp_rovodev_*
+test_*.jpg

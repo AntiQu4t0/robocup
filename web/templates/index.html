@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoboCup Jr — Debug Dashboard</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────────── */
+    header {
+      background: #1e2230;
+      border-bottom: 2px solid #3b82f6;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: #3b82f6; }
+    header span { font-size: 0.85rem; color: #94a3b8; }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 16px;
+      padding: 16px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────────────── */
+    .card {
+      background: #1e2230;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+
+    /* ── Stream ─────────────────────────────────────────────────────────── */
+    #stream-card { grid-row: span 2; }
+    #stream-wrap {
+      position: relative;
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      aspect-ratio: 4/3;
+    }
+    #stream-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    #stream-overlay {
+      position: absolute;
+      top: 8px; left: 8px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .badge-mode   { background: #3b82f6; color: #fff; }
+    .badge-lost   { background: #ef4444; color: #fff; }
+    .badge-search { background: #f59e0b; color: #000; }
+    .badge-ra     { background: #a855f7; color: #fff; }
+    .badge-follow { background: #22c55e; color: #000; }
+
+    /* ── Status bar ─────────────────────────────────────────────────────── */
+    #status-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .stat {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+
+    /* ── Controls ───────────────────────────────────────────────────────── */
+    .btn-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    #btn-start { background: #22c55e; color: #000; }
+    #btn-stop  { background: #ef4444; color: #fff; }
+
+    /* ── Settings forms ─────────────────────────────────────────────────── */
+    .settings-section { margin-bottom: 18px; }
+    .settings-section h3 {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #3b82f6;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #2d3748;
+    }
+    .field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+    .field label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      min-width: 130px;
+    }
+    .field input[type="number"] {
+      width: 90px;
+      background: #0f1117;
+      border: 1px solid #374151;
+      color: #e2e8f0;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.85rem;
+      text-align: right;
+    }
+    .field input[type="number"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    .save-btn {
+      width: 100%;
+      padding: 7px;
+      background: #1d4ed8;
+      color: #fff;
+      border-radius: 5px;
+      font-size: 0.82rem;
+      margin-top: 6px;
+    }
+    .save-btn:hover { background: #2563eb; }
+    .toast {
+      display: none;
+      font-size: 0.75rem;
+      color: #22c55e;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* ── Slider servo ───────────────────────────────────────────────────── */
+    .servo-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .servo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: #3b82f6;
+      height: 6px;
+      cursor: pointer;
+    }
+    .servo-val {
+      min-width: 36px;
+      text-align: right;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+    .save-all-btn {
+      width: 100%;
+      padding: 10px;
+      background: #16a34a;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .save-all-btn:hover { background: #15803d; }
+
+    /* ── Error bar ──────────────────────────────────────────────────────── */
+    #error-bar-wrap {
+      margin-top: 10px;
+      background: #0f1117;
+      border-radius: 6px;
+      height: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    #error-bar {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 4px;
+      background: #ef4444;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: left 0.1s;
+      border-radius: 2px;
+    }
+    #error-center { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #374151; }
+
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; }
+      #stream-card { grid-row: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🤖 RoboCup Jr Rescue Line</h1>
+  <span>Debug Dashboard</span>
+  <span id="conn-status" style="margin-left:auto; color:#ef4444;">● disconnesso</span>
+</header>
+
+<main>
+
+  <!-- ── Stream + status ─────────────────────────────────────────────── -->
+  <div class="card" id="stream-card">
+    <h2>Camera Feed</h2>
+    <div id="stream-wrap">
+      <img id="stream-img" src="/stream" alt="stream" />
+      <div id="stream-overlay">
+        <span class="badge badge-mode" id="mode-badge">IDLE</span>
+      </div>
+    </div>
+
+    <!-- Barra errore -->
+    <div id="error-bar-wrap">
+      <div id="error-center"></div>
+      <div id="error-bar"></div>
+    </div>
+
+    <!-- Statistiche -->
+    <div id="status-grid">
+      <div class="stat">
+        <div class="stat-label">Errore (px)</div>
+        <div class="stat-value" id="val-error">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Sterzo</div>
+        <div class="stat-value" id="val-steering">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Velocità</div>
+        <div class="stat-value" id="val-speed">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Pannello destro ─────────────────────────────────────────────── -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- Controllo robot -->
+    <div class="card">
+      <h2>Controllo Robot</h2>
+      <div class="btn-row">
+        <button id="btn-start" onclick="robotControl('start')">▶ START</button>
+        <button id="btn-stop"  onclick="robotControl('stop')">■ STOP</button>
+      </div>
+      <div id="ctrl-toast" class="toast"></div>
+
+      <!-- Servo camera -->
+      <div style="margin-top:14px;">
+        <h2>Inclinazione Camera</h2>
+        <div class="servo-wrap">
+          <div class="servo-row">
+            <span style="font-size:0.75rem;color:#64748b;">0°</span>
+            <input type="range" id="servo-slider" min="0" max="180" value="90" step="1"
+                   oninput="onServoSlider(this.value)" />
+            <span style="font-size:0.75rem;color:#64748b;">180°</span>
+            <span class="servo-val"><span id="servo-angle-val">90</span>°</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button style="flex:1;padding:6px;background:#1e3a5f;color:#93c5fd;border-radius:5px;font-size:0.8rem;"
+                    onclick="setServo(0)">◀ Min</button>
+            <button style="flex:1;padding:6px;background:#1e3a5f;color:#93c5fd;border-radius:5px;font-size:0.8rem;"
+                    onclick="setServo(90)">● Centro</button>
+            <button style="flex:1;padding:6px;background:#1e3a5f;color:#93c5fd;border-radius:5px;font-size:0.8rem;"
+                    onclick="setServo(180)">▶ Max</button>
+          </div>
+          <div id="servo-toast" class="toast">✓ Servo mosso</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Salva tutto su file -->
+    <div class="card">
+      <h2>Salva Configurazione</h2>
+      <p style="font-size:0.78rem;color:#64748b;margin-bottom:10px;">
+        Salva tutti i parametri correnti (PID, velocità, visione, angolo servo) su <code>settings.cfg</code>.
+      </p>
+      <button class="save-all-btn" onclick="saveAll()">💾 Salva su settings.cfg</button>
+      <div id="save-all-toast" class="toast" style="font-size:0.85rem;">✓ Salvato su settings.cfg</div>
+    </div>
+
+    <!-- Impostazioni PID -->
+    <div class="card">
+      <h2>Impostazioni</h2>
+
+      <div class="settings-section">
+        <h3>PID</h3>
+        <div class="field"><label>Kp</label>          <input type="number" id="pid-kp"  step="0.01" /></div>
+        <div class="field"><label>Ki</label>          <input type="number" id="pid-ki"  step="0.001" /></div>
+        <div class="field"><label>Kd</label>          <input type="number" id="pid-kd"  step="0.01" /></div>
+        <div class="field"><label>Dead zone (px)</label> <input type="number" id="pid-dz"  step="1" /></div>
+        <div class="field"><label>Max integral</label><input type="number" id="pid-mi"  step="1" /></div>
+        <button class="save-btn" onclick="savePID()">Salva PID</button>
+        <div id="pid-toast" class="toast">✓ Salvato</div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Velocità</h3>
+        <div class="field"><label>Base speed</label> <input type="number" id="spd-base" step="1" /></div>
+        <div class="field"><label>Max speed</label>  <input type="number" id="spd-max"  step="1" /></div>
+        <div class="field"><label>Min speed</label>  <input type="number" id="spd-min"  step="1" /></div>
+        <div class="field"><label>Turn speed</label> <input type="number" id="spd-turn" step="1" /></div>
+        <button class="save-btn" onclick="saveSpeeds()">Salva Velocità</button>
+        <div id="spd-toast" class="toast">✓ Salvato</div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Visione</h3>
+        <div class="field"><label>Threshold</label>        <input type="number" id="vis-thr"  step="1" min="0" max="255" /></div>
+        <div class="field"><label>Blur kernel</label>      <input type="number" id="vis-blur" step="2" min="1" max="21" /></div>
+        <div class="field"><label>ROI top ratio</label>    <input type="number" id="vis-roi-t" step="0.01" min="0" max="1" /></div>
+        <div class="field"><label>ROI bottom ratio</label> <input type="number" id="vis-roi-b" step="0.01" min="0" max="1" /></div>
+        <div class="field"><label>Side margin</label>      <input type="number" id="vis-side" step="0.01" min="0" max="0.5" /></div>
+        <button class="save-btn" onclick="saveVision()">Salva Visione</button>
+        <div id="vis-toast" class="toast">✓ Salvato</div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Polling stato ────────────────────────────────────────────────────────────
+const MODE_COLORS = {
+  following:   "badge-follow",
+  searching:   "badge-search",
+  right_angle: "badge-ra",
+  stopped:     "badge-lost",
+  idle:        "badge-mode",
+};
+const MODE_LABELS = {
+  following:   "FOLLOW",
+  searching:   "SEARCH",
+  right_angle: "ANGOLO RETTO",
+  stopped:     "STOP",
+  idle:        "IDLE",
+};
+
+let lastMode = "";
+
+async function pollStatus() {
+  try {
+    const r = await fetch("/status");
+    const d = await r.json();
+
+    // Connessione
+    document.getElementById("conn-status").textContent = "● connesso";
+    document.getElementById("conn-status").style.color = "#22c55e";
+
+    // Badge modalità
+    const badge = document.getElementById("mode-badge");
+    if (d.mode !== lastMode) {
+      badge.className = "badge " + (MODE_COLORS[d.mode] || "badge-mode");
+      badge.textContent = MODE_LABELS[d.mode] || d.mode.toUpperCase();
+      lastMode = d.mode;
+    }
+
+    // Valori
+    document.getElementById("val-error").textContent    = (d.error >= 0 ? "+" : "") + d.error;
+    document.getElementById("val-steering").textContent = (d.steering >= 0 ? "+" : "") + d.steering;
+    document.getElementById("val-speed").textContent    = d.speed;
+
+    // Barra errore (assume frame width 160, errore max ±80)
+    const maxErr = 80;
+    const pct = 50 + (d.error / maxErr) * 50;
+    document.getElementById("error-bar").style.left = Math.max(0, Math.min(100, pct)) + "%";
+
+  } catch (e) {
+    document.getElementById("conn-status").textContent = "● disconnesso";
+    document.getElementById("conn-status").style.color = "#ef4444";
+  }
+}
+setInterval(pollStatus, 200);
+
+// ── Carica settings iniziali ─────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const r = await fetch("/settings");
+    const d = await r.json();
+    // PID
+    document.getElementById("pid-kp").value = d.pid.kp;
+    document.getElementById("pid-ki").value = d.pid.ki;
+    document.getElementById("pid-kd").value = d.pid.kd;
+    document.getElementById("pid-dz").value = d.pid.dead_zone;
+    document.getElementById("pid-mi").value = d.pid.max_integral;
+    // Speeds
+    document.getElementById("spd-base").value = d.speeds.base_speed;
+    document.getElementById("spd-max").value  = d.speeds.max_speed;
+    document.getElementById("spd-min").value  = d.speeds.min_speed;
+    document.getElementById("spd-turn").value = d.speeds.turn_speed;
+    // Vision
+    document.getElementById("vis-thr").value   = d.vision.threshold;
+    document.getElementById("vis-blur").value  = d.vision.blur_k;
+    document.getElementById("vis-roi-t").value = d.vision.roi_top;
+    document.getElementById("vis-roi-b").value = d.vision.roi_bottom;
+    document.getElementById("vis-side").value  = d.vision.side_margin;
+    // Servo camera
+    if (d.camera && d.camera.servo_camera_angle !== undefined) {
+      const ang = d.camera.servo_camera_angle;
+      document.getElementById("servo-slider").value = ang;
+      document.getElementById("servo-angle-val").textContent = ang;
+    }
+  } catch(e) { console.warn("Settings non ancora disponibili"); }
+}
+loadSettings();
+
+// ── Save helpers ─────────────────────────────────────────────────────────────
+function showToast(id) {
+  const el = document.getElementById(id);
+  el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 2000);
+}
+
+async function postJSON(url, data) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return r.json();
+}
+
+async function savePID() {
+  await postJSON("/settings/pid", {
+    kp:           parseFloat(document.getElementById("pid-kp").value),
+    ki:           parseFloat(document.getElementById("pid-ki").value),
+    kd:           parseFloat(document.getElementById("pid-kd").value),
+    dead_zone:    parseFloat(document.getElementById("pid-dz").value),
+    max_integral: parseFloat(document.getElementById("pid-mi").value),
+  });
+  showToast("pid-toast");
+}
+
+async function saveSpeeds() {
+  await postJSON("/settings/speeds", {
+    base_speed: parseFloat(document.getElementById("spd-base").value),
+    max_speed:  parseFloat(document.getElementById("spd-max").value),
+    min_speed:  parseFloat(document.getElementById("spd-min").value),
+    turn_speed: parseFloat(document.getElementById("spd-turn").value),
+  });
+  showToast("spd-toast");
+}
+
+async function saveVision() {
+  await postJSON("/settings/vision", {
+    threshold:   parseInt(document.getElementById("vis-thr").value),
+    blur_k:      parseInt(document.getElementById("vis-blur").value),
+    roi_top:     parseFloat(document.getElementById("vis-roi-t").value),
+    roi_bottom:  parseFloat(document.getElementById("vis-roi-b").value),
+    side_margin: parseFloat(document.getElementById("vis-side").value),
+  });
+  showToast("vis-toast");
+}
+
+async function robotControl(action) {
+  const r = await postJSON("/control/" + action, {});
+  const toast = document.getElementById("ctrl-toast");
+  toast.textContent = action === "start" ? "▶ Robot avviato" : "■ Robot fermato";
+  toast.style.display = "block";
+  setTimeout(() => toast.style.display = "none", 2000);
+}
+
+// ── Servo camera ─────────────────────────────────────────────────────────────
+let servoTimer = null;
+
+function onServoSlider(val) {
+  document.getElementById("servo-angle-val").textContent = val;
+  // Debounce: manda il comando solo dopo 80ms di pausa (evita flood)
+  clearTimeout(servoTimer);
+  servoTimer = setTimeout(() => moveServo(parseFloat(val)), 80);
+}
+
+function setServo(angle) {
+  document.getElementById("servo-slider").value = angle;
+  document.getElementById("servo-angle-val").textContent = angle;
+  moveServo(angle);
+}
+
+async function moveServo(angle) {
+  try {
+    await postJSON("/settings/servo_camera", { angle });
+    showToast("servo-toast");
+  } catch(e) { console.error("Errore servo:", e); }
+}
+
+// ── Salva tutto su file ───────────────────────────────────────────────────────
+async function saveAll() {
+  try {
+    const r = await postJSON("/settings/save", {});
+    if (r.ok) {
+      const t = document.getElementById("save-all-toast");
+      t.style.display = "block";
+      setTimeout(() => t.style.display = "none", 3000);
+    } else {
+      alert("Errore nel salvataggio: " + (r.error || "sconosciuto"));
+    }
+  } catch(e) {
+    alert("Errore di rete: " + e);
+  }
+}
+</script>
+</body>
+</html>
